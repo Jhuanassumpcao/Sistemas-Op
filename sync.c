@@ -6,7 +6,7 @@
 #include <time.h>
 
 #define MAX_SETORES 3
-#define MAX_SOLICITACOES 30
+#define MAX_SOLICITACOES 10
 
 typedef struct {
     int id;
@@ -52,6 +52,7 @@ void *thread_setor(void *arg) {
             if (rand() % 2 == 0 && quantidade_impressoras_t1 > 0) {
                 impressora_id = rand() % quantidade_impressoras_t1;
                 tipo_impressora = 1;
+	 	
             } else if (quantidade_impressoras_t2 > 0) {
                 impressora_id = rand() % quantidade_impressoras_t2;
                 tipo_impressora = 2;
@@ -59,6 +60,7 @@ void *thread_setor(void *arg) {
 
             if (impressora_id != -1) {
                 if (tipo_impressora == 1) {
+					quantidade_impressoras_t1--;
                     sem_wait(&impressoras_t1[impressora_id].sem_impressora);
                     aguardar(100, 500);
 
@@ -67,7 +69,7 @@ void *thread_setor(void *arg) {
                         total_falhas_t1++;
                         sem_post(&impressoras_t1[impressora_id].sem_impressora);
                         aguardar(100, 500); // Aguardar um tempo antes de tentar novamente
-						printf("Impressão falhou: Setor %d, solicitação #%d, impressora T1-%d\n", setor_id, i + 1, impressora_id);
+						printf("Setor %d está realizando solicitação #%d de impressão\n", setor_id, i + 1);
                     } else {
                         printf("Impressora T1-%d está imprimindo a solicitação #%d do Setor %d\n", impressora_id, i + 1, setor_id);
                         aguardar(100, 500);
@@ -76,8 +78,10 @@ void *thread_setor(void *arg) {
                         sem_post(&impressoras_t1[impressora_id].sem_impressora);
                         setores[setor_id].quantidade_impressoes++;
                         solicitacao_concluida = 1;
+						quantidade_impressoras_t1++;
                     }
                 } else {
+					quantidade_impressoras_t2--;
                     sem_wait(&impressoras_t2[impressora_id].sem_impressora);
                     aguardar(100, 500);
 
@@ -88,10 +92,13 @@ void *thread_setor(void *arg) {
                     sem_post(&impressoras_t2[impressora_id].sem_impressora);
                     setores[setor_id].quantidade_impressoes++;
                     solicitacao_concluida = 1;
+					quantidade_impressoras_t2++;
+
                 }
             } else {
                 printf("Setor %d não possui impressora disponível para a solicitação #%d\n", setor_id, i + 1);
                 aguardar(100, 500); // Aguardar um tempo antes de tentar novamente
+				printf("Setor %d está realizando solicitação #%d de impressão\n", setor_id, i + 1);
             }
         }
 
