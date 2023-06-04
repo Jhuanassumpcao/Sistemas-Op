@@ -5,13 +5,13 @@
 #include <unistd.h>
 #include <time.h>
 
-#define MAX_SETORES 5
-#define MAX_SOLICITACOES 5
+#define MAX_SETORES 3
+#define MAX_SOLICITACOES 30
 
 typedef struct {
     int id;
     int quantidade_impressoes;
-    sem_t sem_setor; 	
+    sem_t sem_setor;
 } Setor;
 
 typedef struct {
@@ -67,7 +67,7 @@ void *thread_setor(void *arg) {
                         total_falhas_t1++;
                         sem_post(&impressoras_t1[impressora_id].sem_impressora);
                         aguardar(100, 500); // Aguardar um tempo antes de tentar novamente
-						printf("Setor %d está realizando solicitação #%d de impressão\n", setor_id, i + 1);
+						printf("Impressão falhou: Setor %d, solicitação #%d, impressora T1-%d\n", setor_id, i + 1, impressora_id);
                     } else {
                         printf("Impressora T1-%d está imprimindo a solicitação #%d do Setor %d\n", impressora_id, i + 1, setor_id);
                         aguardar(100, 500);
@@ -100,96 +100,6 @@ void *thread_setor(void *arg) {
         }
 
         sem_post(&setores[setor_id].sem_setor);
-    }
-
-    pthread_exit(NULL);
-}
-
-void *thread_impressora_t1(void *arg) {
-    int impressora_id = *((int *) arg);
-
-    while (1) {
-        sem_wait(&impressoras_t1[impressora_id].sem_impressora);
-
-        // Verificar se há solicitações de impressão pendentes
-        int solicitacao_pendente = 0;
-        for (int i = 0; i < MAX_SETORES; i++) {
-            if (setores[i].quantidade_impressoes < MAX_SOLICITACOES) {
-                solicitacao_pendente = 1;
-                break;
-            }
-        }
-
-        if (solicitacao_pendente) {
-            aguardar(100, 500);
-
-            int setor_id = -1;
-            int solicitacao_id = -1;
-
-            // Encontrar uma solicitação para imprimir
-            for (int i = 0; i < MAX_SETORES; i++) {
-                if (setores[i].quantidade_impressoes < MAX_SOLICITACOES) {
-                    setor_id = i;
-                    solicitacao_id = setores[i].quantidade_impressoes;
-                    break;
-                }
-            }
-
-            printf("Impressora T1-%d está imprimindo a solicitação #%d do Setor %d\n", impressora_id, solicitacao_id + 1, setor_id);
-            aguardar(100, 500);
-            printf("Impressão concluída: Setor %d, solicitação #%d, impressora T1-%d\n", setor_id, solicitacao_id + 1, impressora_id);
-            total_sucesso_t1++;
-            sem_post(&impressoras_t1[impressora_id].sem_impressora);
-            setores[setor_id].quantidade_impressoes++;
-        } else {
-            sem_post(&impressoras_t1[impressora_id].sem_impressora);
-            break;
-        }
-    }
-
-    pthread_exit(NULL);
-}
-
-void *thread_impressora_t2(void *arg) {
-    int impressora_id = *((int *) arg);
-
-    while (1) {
-        sem_wait(&impressoras_t2[impressora_id].sem_impressora);
-
-        // Verificar se há solicitações de impressão pendentes
-        int solicitacao_pendente = 0;
-        for (int i = 0; i < MAX_SETORES; i++) {
-            if (setores[i].quantidade_impressoes < MAX_SOLICITACOES) {
-                solicitacao_pendente = 1;
-                break;
-            }
-        }
-
-        if (solicitacao_pendente) {
-            aguardar(100, 500);
-
-            int setor_id = -1;
-            int solicitacao_id = -1;
-
-            // Encontrar uma solicitação para imprimir
-            for (int i = 0; i < MAX_SETORES; i++) {
-                if (setores[i].quantidade_impressoes < MAX_SOLICITACOES) {
-                    setor_id = i;
-                    solicitacao_id = setores[i].quantidade_impressoes;
-                    break;
-                }
-            }
-
-            printf("Impressora T2-%d está imprimindo a solicitação #%d do Setor %d\n", impressora_id, solicitacao_id + 1, setor_id);
-            aguardar(100, 500);
-            printf("Impressão concluída: Setor %d, solicitação #%d, impressora T2-%d\n", setor_id, solicitacao_id + 1, impressora_id);
-            total_sucesso_t2++;
-            sem_post(&impressoras_t2[impressora_id].sem_impressora);
-            setores[setor_id].quantidade_impressoes++;
-        } else {
-            sem_post(&impressoras_t2[impressora_id].sem_impressora);
-            break;
-        }
     }
 
     pthread_exit(NULL);
@@ -228,52 +138,28 @@ int main(int argc, char *argv[]) {
         impressoras_t2[i].id = i;
     }
 
-    // Inicializar gerador de números aleatórios
+    // Inicializar semente para geração de números aleatórios
     srand(time(NULL));
 
     // Criar threads dos setores
     pthread_t threads_setores[MAX_SETORES];
-    int setor_ids[MAX_SETORES];
+    int ids_setores[MAX_SETORES];
 
     for (int i = 0; i < MAX_SETORES; i++) {
-        setor_ids[i] = i;
-        pthread_create(&threads_setores[i], NULL, thread_setor, &setor_ids[i]);
+        ids_setores[i] = i;
+        pthread_create(&threads_setores[i], NULL, thread_setor, (void *) &ids_setores[i]);
     }
 
-    // Criar threads das impressoras T1
-    pthread_t threads_impressoras_t1[quantidade_impressoras_t1];
-    int impressora_ids_t1[quantidade_impressoras_t1];
-
-    for (int i = 0; i < quantidade_impressoras_t1; i++) {
-        impressora_ids_t1[i] = i;
-        pthread_create(&threads_impressoras_t1[i], NULL, thread_impressora_t1, &impressora_ids_t1[i]);
-    }
-
-    // Criar threads das impressoras T2
-    pthread_t threads_impressoras_t2[quantidade_impressoras_t2];
-    int impressora_ids_t2[quantidade_impressoras_t2];
-
-    for (int i = 0; i < quantidade_impressoras_t2; i++) {
-        impressora_ids_t2[i] = i;
-        pthread_create(&threads_impressoras_t2[i], NULL, thread_impressora_t2, &impressora_ids_t2[i]);
-    }
-
-    // Aguardar finalização das threads dos setores
+    // Aguardar as threads dos setores terminarem
     for (int i = 0; i < MAX_SETORES; i++) {
         pthread_join(threads_setores[i], NULL);
     }
 
-    // Aguardar finalização das threads das impressoras T1
-    for (int i = 0; i < quantidade_impressoras_t1; i++) {
-        pthread_join(threads_impressoras_t1[i], NULL);
-    }
+    // Liberar memória alocada
+    free(impressoras_t1);
+    free(impressoras_t2);
 
-    // Aguardar finalização das threads das impressoras T2
-    for (int i = 0; i < quantidade_impressoras_t2; i++) {
-        pthread_join(threads_impressoras_t2[i], NULL);
-    }
-
-  // Exibir informações
+    // Exibir informações
     printf("\n--- Relatório Final ---\n");
     for (int i = 0; i < MAX_SETORES; i++) {
         printf("Setor %d: %d impressões\n", i, setores[i].quantidade_impressoes);
@@ -290,9 +176,6 @@ int main(int argc, char *argv[]) {
     printf("Sucesso: %d impressões\n", total_sucesso_t2);
     printf("Falhas: %d impressões\n", total_falhas_t2);
 
-    // Liberar memória alocada
-    free(impressoras_t1);
-    free(impressoras_t2);
 
     return 0;
 }
